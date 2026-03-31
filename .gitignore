@@ -1,0 +1,36 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Example build output (Go binaries without extension)
+examples/terminal-echo-chat/terminal-echo-chat
+examples/multi-account-server/server/server
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Example runtime data
+data/
+downloads/
+
+# Node
+node_modules/
+
+# Reference source (not part of this project)
+openclaw-weixin-src/
