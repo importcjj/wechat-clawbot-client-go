@@ -138,8 +138,9 @@ func (m *BotManager) getOrCreate(clientID string) *clawbot.DefaultClient {
 	}
 
 	client := clawbot.NewDefault(clientID, m.store,
-		clawbot.WithDefaultEventHooks(clawbot.DefaultEventHooks{
-			OnMessage: func(id string, msg *clawbot.Message) {
+		clawbot.WithEventHooks(clawbot.EventHooks[struct{}]{
+			OnMessage: func(c *clawbot.DefaultClient, msg *clawbot.Message) {
+				id := c.ClientID()
 				slog.Info("message", "bot", id, "from", msg.From, "text", msg.Text,
 					"images", len(msg.Images), "files", len(msg.Files))
 
@@ -167,14 +168,14 @@ func (m *BotManager) getOrCreate(clientID string) *clawbot.DefaultClient {
 				}
 				m.msgStore.Add(cm)
 			},
-			OnConnected: func(id string) {
-				slog.Info("bot connected", "id", id)
+			OnConnected: func(c *clawbot.DefaultClient) {
+				slog.Info("bot connected", "id", c.ClientID())
 			},
-			OnSessionExpired: func(id string) {
-				slog.Warn("bot session expired", "id", id)
+			OnSessionExpired: func(c *clawbot.DefaultClient) {
+				slog.Warn("bot session expired", "id", c.ClientID())
 			},
-			OnDisconnected: func(id string, err error) {
-				slog.Info("bot disconnected", "id", id, "error", err)
+			OnDisconnected: func(c *clawbot.DefaultClient, err error) {
+				slog.Info("bot disconnected", "id", c.ClientID(), "error", err)
 			},
 		}),
 	)

@@ -8,8 +8,18 @@ type DefaultClient = Client[struct{}]
 // DefaultOption is an Option without custom state.
 type DefaultOption = Option[struct{}]
 
-// DefaultEventHooks is EventHooks without custom state.
-type DefaultEventHooks = EventHooks[struct{}]
+// DefaultEventHooks provides event callbacks without the state parameter,
+// for use with DefaultClient.
+type DefaultEventHooks struct {
+	OnMessage        func(clientID string, msg *Message)
+	OnQRCode         func(clientID string, qrCodeURL string)
+	OnQRScanned      func(clientID string)
+	OnQRExpired      func(clientID string, refreshCount int)
+	OnConnected      func(clientID string)
+	OnSessionExpired func(clientID string)
+	OnDisconnected   func(clientID string, err error)
+	OnError          func(clientID string, err error)
+}
 
 // NewDefault creates a Client without custom state.
 //
@@ -25,7 +35,32 @@ func NewDefault(clientID string, s store.Store, opts ...DefaultOption) *DefaultC
 }
 
 // WithDefaultEventHooks sets event hooks for a DefaultClient.
-// Shorthand for WithEventHooks[struct{}](h).
+// It wraps each callback to match the EventHooks[struct{}] signature.
 func WithDefaultEventHooks(h DefaultEventHooks) DefaultOption {
-	return WithEventHooks[struct{}](h)
+	generic := EventHooks[struct{}]{}
+	if h.OnMessage != nil {
+		generic.OnMessage = func(c *DefaultClient, msg *Message) { h.OnMessage(c.clientID, msg) }
+	}
+	if h.OnQRCode != nil {
+		generic.OnQRCode = func(c *DefaultClient, url string) { h.OnQRCode(c.clientID, url) }
+	}
+	if h.OnQRScanned != nil {
+		generic.OnQRScanned = func(c *DefaultClient) { h.OnQRScanned(c.clientID) }
+	}
+	if h.OnQRExpired != nil {
+		generic.OnQRExpired = func(c *DefaultClient, count int) { h.OnQRExpired(c.clientID, count) }
+	}
+	if h.OnConnected != nil {
+		generic.OnConnected = func(c *DefaultClient) { h.OnConnected(c.clientID) }
+	}
+	if h.OnSessionExpired != nil {
+		generic.OnSessionExpired = func(c *DefaultClient) { h.OnSessionExpired(c.clientID) }
+	}
+	if h.OnDisconnected != nil {
+		generic.OnDisconnected = func(c *DefaultClient, err error) { h.OnDisconnected(c.clientID, err) }
+	}
+	if h.OnError != nil {
+		generic.OnError = func(c *DefaultClient, err error) { h.OnError(c.clientID, err) }
+	}
+	return WithEventHooks[struct{}](generic)
 }

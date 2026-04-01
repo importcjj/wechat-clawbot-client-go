@@ -28,27 +28,26 @@ func main() {
 		log.Fatalf("创建下载目录失败: %v", err)
 	}
 
-	var client *clawbot.DefaultClient
-	client = clawbot.NewDefault("terminal-echo", store.NewFileStore(dataDir),
-		clawbot.WithDefaultEventHooks(clawbot.DefaultEventHooks{
-			OnMessage: func(clientID string, msg *clawbot.Message) {
-				handleMessage(ctx, client, msg)
+	client := clawbot.NewDefault("terminal-echo", store.NewFileStore(dataDir),
+		clawbot.WithEventHooks(clawbot.EventHooks[struct{}]{
+			OnMessage: func(c *clawbot.DefaultClient, msg *clawbot.Message) {
+				handleMessage(ctx, c, msg)
 			},
-			OnConnected: func(clientID string) {
+			OnConnected: func(_ *clawbot.DefaultClient) {
 				fmt.Println("\n✅ 已连接! 现在可以在微信上发消息了。")
 				fmt.Println("   - 发送文本 → 自动 echo 回复")
 				fmt.Println("   - 发送图片 → 下载到本地并回复确认")
 				fmt.Println("   - Ctrl+C 退出")
 			},
-			OnSessionExpired: func(clientID string) {
+			OnSessionExpired: func(_ *clawbot.DefaultClient) {
 				fmt.Println("\n⚠️  会话过期，需要重新扫码登录。")
 			},
-			OnDisconnected: func(clientID string, err error) {
+			OnDisconnected: func(_ *clawbot.DefaultClient, err error) {
 				if err != nil && !errors.Is(err, context.Canceled) {
 					fmt.Printf("\n❌ 连接断开: %v\n", err)
 				}
 			},
-			OnError: func(clientID string, err error) {
+			OnError: func(_ *clawbot.DefaultClient, err error) {
 				fmt.Printf("⚠️  错误: %v\n", err)
 			},
 		}),

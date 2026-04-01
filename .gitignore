@@ -8,6 +8,7 @@
 # Example build output (Go binaries without extension)
 examples/terminal-echo-chat/terminal-echo-chat
 examples/multi-account-server/server/server
+examples/stateful-bot/stateful-bot
 
 # Test binary
 *.test

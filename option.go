@@ -19,16 +19,17 @@ type clientConfig[T any] struct {
 	msgBufSize int
 }
 
-// EventHooks receives lifecycle events. All callbacks include clientID as the first parameter.
+// EventHooks receives lifecycle events. All callbacks receive *Client[T] as
+// the first parameter, giving access to the client, its ID, and user state.
 type EventHooks[T any] struct {
-	OnMessage        func(clientID string, msg *Message)
-	OnQRCode         func(clientID string, qrCodeURL string)
-	OnQRScanned      func(clientID string)
-	OnQRExpired      func(clientID string, refreshCount int)
-	OnConnected      func(clientID string)
-	OnSessionExpired func(clientID string)
-	OnDisconnected   func(clientID string, err error)
-	OnError          func(clientID string, err error)
+	OnMessage        func(client *Client[T], msg *Message)
+	OnQRCode         func(client *Client[T], qrCodeURL string)
+	OnQRScanned      func(client *Client[T])
+	OnQRExpired      func(client *Client[T], refreshCount int)
+	OnConnected      func(client *Client[T])
+	OnSessionExpired func(client *Client[T])
+	OnDisconnected   func(client *Client[T], err error)
+	OnError          func(client *Client[T], err error)
 }
 
 // WithEventHooks sets lifecycle event callbacks.

@@ -129,17 +129,17 @@ func (c *Client[T]) Login(ctx context.Context) (*LoginSession, error) {
 	callbacks := auth.LoginCallbacks{
 		OnQRCode: func(url string) {
 			if c.cfg.hooks.OnQRCode != nil {
-				c.cfg.hooks.OnQRCode(c.clientID, url)
+				c.cfg.hooks.OnQRCode(c, url)
 			}
 		},
 		OnQRScanned: func() {
 			if c.cfg.hooks.OnQRScanned != nil {
-				c.cfg.hooks.OnQRScanned(c.clientID)
+				c.cfg.hooks.OnQRScanned(c)
 			}
 		},
 		OnQRExpired: func(count int) {
 			if c.cfg.hooks.OnQRExpired != nil {
-				c.cfg.hooks.OnQRExpired(c.clientID, count)
+				c.cfg.hooks.OnQRExpired(c, count)
 			}
 		},
 	}
@@ -185,7 +185,7 @@ func (c *Client[T]) onLoginComplete(result *auth.LoginResult) {
 	c.setState(StateReady)
 
 	if c.cfg.hooks.OnConnected != nil {
-		c.cfg.hooks.OnConnected(c.clientID)
+		c.cfg.hooks.OnConnected(c)
 	}
 }
 
@@ -219,7 +219,15 @@ func (c *Client[T]) Start(ctx context.Context) error {
 
 	c.setState(StateRunning)
 	if c.cfg.hooks.OnConnected != nil {
-		c.cfg.hooks.OnConnected(c.clientID)
+		c.cfg.hooks.OnConnected(c)
+	}
+
+	// Bridge generic EventHooks[T] to internal monitor.Callbacks.
+	var onMessage func(clientID string, msg *Message)
+	if c.cfg.hooks.OnMessage != nil {
+		onMessage = func(_ string, msg *Message) {
+			c.cfg.hooks.OnMessage(c, msg)
+		}
 	}
 
 	loopCfg := &monitor.LoopConfig{
@@ -229,16 +237,16 @@ func (c *Client[T]) Start(ctx context.Context) error {
 		Store:      c.store,
 		Logger:     c.tc.Logger,
 		Callbacks: monitor.Callbacks{
-			OnMessage: c.cfg.hooks.OnMessage,
-			OnSessionExpired: func(clientID string) {
+			OnMessage: onMessage,
+			OnSessionExpired: func(_ string) {
 				c.setState(StateSessionExpired)
 				if c.cfg.hooks.OnSessionExpired != nil {
-					c.cfg.hooks.OnSessionExpired(clientID)
+					c.cfg.hooks.OnSessionExpired(c)
 				}
 			},
-			OnError: func(clientID string, err error) {
+			OnError: func(_ string, err error) {
 				if c.cfg.hooks.OnError != nil {
-					c.cfg.hooks.OnError(clientID, err)
+					c.cfg.hooks.OnError(c, err)
 				}
 			},
 		},
@@ -247,7 +255,7 @@ func (c *Client[T]) Start(ctx context.Context) error {
 	err := monitor.Run(ctx, loopCfg)
 	c.setState(StateStopped)
 	if c.cfg.hooks.OnDisconnected != nil {
-		c.cfg.hooks.OnDisconnected(c.clientID, err)
+		c.cfg.hooks.OnDisconnected(c, err)
 	}
 	return err
 }
