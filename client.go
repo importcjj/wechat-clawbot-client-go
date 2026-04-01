@@ -260,6 +260,13 @@ func (c *Client[T]) Stop() {
 	if cancel != nil {
 		cancel()
 	}
+
+	// If Stop is called before Start (e.g. during login), there's no
+	// monitor loop to cancel. Reset to StateNew so the client can be
+	// reused for a fresh Login() cycle.
+	if s := c.State(); s != StateRunning && s != StateStopped {
+		c.setState(StateNew)
+	}
 }
 
 // SendText sends a plain text message to a user.
