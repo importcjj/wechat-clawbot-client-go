@@ -20,7 +20,7 @@ const (
 // Message is the SDK's public message type, built from WeixinMessage.
 type Message struct {
 	ClientID  string
-	MessageID int64
+	MessageID uint64 // uint64 on the wire; see api.WeixinMessage.MessageID
 	From      string
 	To        string
 	MsgClientID string

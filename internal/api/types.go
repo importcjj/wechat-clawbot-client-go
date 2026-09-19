@@ -121,8 +121,10 @@ type MessageItem struct {
 
 // WeixinMessage is the unified message structure from getUpdates / sendMessage.
 type WeixinMessage struct {
-	Seq          int            `json:"seq,omitempty"`
-	MessageID    int64          `json:"message_id,omitempty"`
+	Seq int `json:"seq,omitempty"`
+	// MessageID is uint64 on the wire. Decoding it into an int64 makes the
+	// whole getUpdates response fail to unmarshal once an id passes 2^63.
+	MessageID    uint64         `json:"message_id,omitempty"`
 	FromUserID   string         `json:"from_user_id,omitempty"`
 	ToUserID     string         `json:"to_user_id,omitempty"`
 	ClientID     string         `json:"client_id,omitempty"`

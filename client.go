@@ -17,6 +17,10 @@ import (
 	"github.com/importcjj/wechat-clawbot-client-go/store"
 )
 
+// notifyStopTimeout bounds the shutdown notice, which runs on its own context
+// after the caller's has already been cancelled.
+const notifyStopTimeout = 5 * time.Second
+
 // Client[T] is the main entry point for the WeChat iLink Bot SDK.
 // T is a user-defined state type for carrying business context.
 type Client[T any] struct {
@@ -246,6 +250,12 @@ func (c *Client[T]) Start(ctx context.Context) error {
 		c.cfg.hooks.OnConnected(c)
 	}
 
+	// Best-effort lifecycle notices, as the reference channel does: the server
+	// uses them for presence, and a failure must not stop the bot from running.
+	if err := api.NotifyStart(ctx, c.tc); err != nil {
+		c.tc.Logger.Warn("notifyStart failed during startup (ignored)", "error", err)
+	}
+
 	// Bridge generic EventHooks[T] to internal monitor.Callbacks.
 	var onMessage func(clientID string, msg *Message)
 	if c.cfg.hooks.OnMessage != nil {
@@ -278,6 +288,15 @@ func (c *Client[T]) Start(ctx context.Context) error {
 
 	err := monitor.Run(ctx, loopCfg)
 	c.setState(StateStopped)
+
+	// ctx is already cancelled by the time we get here, so notifyStop needs a
+	// context of its own or it can never reach the server.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), notifyStopTimeout)
+	if nerr := api.NotifyStop(stopCtx, c.tc); nerr != nil {
+		c.tc.Logger.Warn("notifyStop failed during shutdown (ignored)", "error", nerr)
+	}
+	stopCancel()
+
 	if c.cfg.hooks.OnDisconnected != nil {
 		c.cfg.hooks.OnDisconnected(c, err)
 	}
