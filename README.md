@@ -66,6 +66,10 @@ func main() {
 }
 ```
 
+> **二维码有效期约 90 秒。** 到期后 `Wait()` 会自动换一张新码继续轮询，`OnQRCode` 随之再次触发，
+> `session.QRCodeURL()` 也会返回新值。界面上必须跟着刷新——只渲染一次首帧二维码的话，
+> 用户扫到的是已经作废的码，登录永远不会有反应。
+
 ## API
 
 ### Client
@@ -125,6 +129,9 @@ type EventHooks[T any] struct {
     OnQRCode         func(client *Client[T], qrCodeURL string)
     OnQRScanned      func(client *Client[T])
     OnQRExpired      func(client *Client[T], refreshCount int)
+    // 服务端要求输入手机微信上显示的配对数字时调用；retry 为 true 表示上次输错。
+    // 不设置则该情况下登录直接返回 ErrVerifyCodeRequired。
+    OnVerifyCode     func(client *Client[T], retry bool) (string, error)
     OnConnected      func(client *Client[T])
     OnSessionExpired func(client *Client[T])
     OnDisconnected   func(client *Client[T], err error)

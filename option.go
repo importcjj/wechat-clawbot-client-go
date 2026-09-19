@@ -22,10 +22,15 @@ type clientConfig[T any] struct {
 // EventHooks receives lifecycle events. All callbacks receive *Client[T] as
 // the first parameter, giving access to the client, its ID, and user state.
 type EventHooks[T any] struct {
-	OnMessage        func(client *Client[T], msg *Message)
-	OnQRCode         func(client *Client[T], qrCodeURL string)
-	OnQRScanned      func(client *Client[T])
-	OnQRExpired      func(client *Client[T], refreshCount int)
+	OnMessage   func(client *Client[T], msg *Message)
+	OnQRCode    func(client *Client[T], qrCodeURL string)
+	OnQRScanned func(client *Client[T])
+	OnQRExpired func(client *Client[T], refreshCount int)
+	// OnVerifyCode is called when the server asks for the pairing digits shown
+	// in WeChat after a scan. retry is true when the previous code was
+	// rejected. Returning an error aborts the login; leaving this nil makes
+	// such a login fail with ErrVerifyCodeRequired.
+	OnVerifyCode     func(client *Client[T], retry bool) (string, error)
 	OnConnected      func(client *Client[T])
 	OnSessionExpired func(client *Client[T])
 	OnDisconnected   func(client *Client[T], err error)

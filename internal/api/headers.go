@@ -14,7 +14,9 @@ const (
 	DefaultBaseURL    = "https://ilinkai.weixin.qq.com"
 	DefaultCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
 	DefaultAppID      = "bot"
-	DefaultVersion    = "2.1.1"
+	DefaultVersion    = "2.4.9"
+	// DefaultBotAgent mirrors the reference plugin's fallback bot_agent value.
+	DefaultBotAgent = "OpenClaw"
 )
 
 // BuildClientVersion encodes a semver string as uint32: major<<16 | minor<<8 | patch.
@@ -69,5 +71,14 @@ func SetPOSTHeaders(h http.Header, token string, bodyLen int) {
 
 // BuildBaseInfo creates the base_info payload for API requests.
 func BuildBaseInfo(version string) *BaseInfo {
-	return &BaseInfo{ChannelVersion: version}
+	return &BaseInfo{ChannelVersion: version, BotAgent: DefaultBotAgent}
+}
+
+// BuildBaseInfoWithAgent creates the base_info payload with a caller-supplied
+// bot_agent. An empty agent falls back to DefaultBotAgent.
+func BuildBaseInfoWithAgent(version, botAgent string) *BaseInfo {
+	if botAgent == "" {
+		botAgent = DefaultBotAgent
+	}
+	return &BaseInfo{ChannelVersion: version, BotAgent: botAgent}
 }

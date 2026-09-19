@@ -15,6 +15,7 @@ type DefaultEventHooks struct {
 	OnQRCode         func(clientID string, qrCodeURL string)
 	OnQRScanned      func(clientID string)
 	OnQRExpired      func(clientID string, refreshCount int)
+	OnVerifyCode     func(clientID string, retry bool) (string, error)
 	OnConnected      func(clientID string)
 	OnSessionExpired func(clientID string)
 	OnDisconnected   func(clientID string, err error)
@@ -49,6 +50,11 @@ func WithDefaultEventHooks(h DefaultEventHooks) DefaultOption {
 	}
 	if h.OnQRExpired != nil {
 		generic.OnQRExpired = func(c *DefaultClient, count int) { h.OnQRExpired(c.clientID, count) }
+	}
+	if h.OnVerifyCode != nil {
+		generic.OnVerifyCode = func(c *DefaultClient, retry bool) (string, error) {
+			return h.OnVerifyCode(c.clientID, retry)
+		}
 	}
 	if h.OnConnected != nil {
 		generic.OnConnected = func(c *DefaultClient) { h.OnConnected(c.clientID) }

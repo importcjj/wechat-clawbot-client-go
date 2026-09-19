@@ -66,6 +66,11 @@ func main() {
 }
 ```
 
+> **A QR code is valid for about 90 seconds.** When it expires, `Wait()` fetches a replacement and
+> keeps polling; `OnQRCode` fires again and `session.QRCodeURL()` returns the new value. Your UI has
+> to follow. Render the first code once and users end up scanning a dead code, and the login never
+> registers.
+
 ## API
 
 ### Client
@@ -125,6 +130,10 @@ type EventHooks[T any] struct {
     OnQRCode         func(client *Client[T], qrCodeURL string)
     OnQRScanned      func(client *Client[T])
     OnQRExpired      func(client *Client[T], refreshCount int)
+    // Called when the server asks for the pairing digits shown in WeChat;
+    // retry is true when the previous code was rejected. Leave it nil and such
+    // a login fails with ErrVerifyCodeRequired.
+    OnVerifyCode     func(client *Client[T], retry bool) (string, error)
     OnConnected      func(client *Client[T])
     OnSessionExpired func(client *Client[T])
     OnDisconnected   func(client *Client[T], err error)

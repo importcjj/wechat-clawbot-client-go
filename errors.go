@@ -3,10 +3,26 @@ package clawbot
 import (
 	"errors"
 	"fmt"
+
+	"github.com/importcjj/wechat-clawbot-client-go/internal/auth"
 )
 
 // ErrNotLoggedIn is returned by Start when no credentials are available.
 var ErrNotLoggedIn = errors.New("wechat: not logged in, call Login() first")
+
+// ErrAlreadyBound is returned by LoginSession.Wait when the scanned bot is
+// already bound to this client (server status binded_redirect). No new
+// credentials are issued and the stored ones stay valid, so this is a
+// "nothing to do" outcome rather than a failure.
+var ErrAlreadyBound = auth.ErrAlreadyBound
+
+// ErrVerifyCodeRequired is returned by LoginSession.Wait when the server asks
+// for the pairing digits shown in WeChat but no OnVerifyCode hook was set.
+var ErrVerifyCodeRequired = auth.ErrVerifyCodeRequired
+
+// ErrVerifyCodeBlocked is returned by LoginSession.Wait after too many wrong
+// pairing codes.
+var ErrVerifyCodeBlocked = auth.ErrVerifyCodeBlocked
 
 // SessionExpiredError indicates the server returned errcode -14.
 type SessionExpiredError struct {

@@ -103,13 +103,17 @@ func (c *Client[T]) HasCredentials() bool {
 
 // LoginSession represents an in-progress QR login.
 type LoginSession struct {
-	qrCodeURL string
-	session   *auth.QRLoginSession
-	client    interface{ onLoginComplete(*auth.LoginResult) }
+	session *auth.QRLoginSession
+	client  interface{ onLoginComplete(*auth.LoginResult) }
 }
 
-// QRCodeURL returns the URL for displaying the QR code.
-func (s *LoginSession) QRCodeURL() string { return s.qrCodeURL }
+// QRCodeURL returns the URL of the QR code currently being polled.
+//
+// A QR code is only valid for about 90 seconds. When it expires, Wait fetches
+// a replacement and the old code stops being polled, so a UI that renders this
+// value once will keep showing a dead code and the scan will never register.
+// Re-read it (or render from the OnQRCode hook, which fires on every refresh).
+func (s *LoginSession) QRCodeURL() string { return s.session.QRCodeURL() }
 
 // Wait blocks until the QR login completes, times out, or ctx is cancelled.
 func (s *LoginSession) Wait(ctx context.Context) error {
@@ -143,18 +147,38 @@ func (c *Client[T]) Login(ctx context.Context) (*LoginSession, error) {
 			}
 		},
 	}
+	if c.cfg.hooks.OnVerifyCode != nil {
+		callbacks.OnVerifyCode = func(retry bool) (string, error) {
+			return c.cfg.hooks.OnVerifyCode(c, retry)
+		}
+	}
 
-	session, err := auth.StartQRLogin(ctx, c.tc, callbacks)
+	session, err := auth.StartQRLogin(ctx, c.tc, c.localTokens(ctx), callbacks)
 	if err != nil {
 		c.setState(StateNew)
 		return nil, fmt.Errorf("starting QR login: %w", err)
 	}
 
 	return &LoginSession{
-		qrCodeURL: session.QRCodeURL(),
-		session:   session,
-		client:    c,
+		session: session,
+		client:  c,
 	}, nil
+}
+
+// localTokens returns the bot tokens already held for this client, which the
+// server uses to detect a re-scan of a bot that is already bound here.
+func (c *Client[T]) localTokens(ctx context.Context) []string {
+	c.mu.RLock()
+	creds := c.creds
+	c.mu.RUnlock()
+
+	if creds != nil && creds.Token != "" {
+		return []string{creds.Token}
+	}
+	if stored, err := c.store.LoadCredentials(ctx, c.clientID); err == nil && stored.Token != "" {
+		return []string{stored.Token}
+	}
+	return nil
 }
 
 func (c *Client[T]) onLoginComplete(result *auth.LoginResult) {

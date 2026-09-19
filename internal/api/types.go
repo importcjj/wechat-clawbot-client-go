@@ -6,6 +6,9 @@ package api
 // BaseInfo is attached to every outgoing API request body.
 type BaseInfo struct {
 	ChannelVersion string `json:"channel_version,omitempty"`
+	// BotAgent is a self-declared identity for the upstream bot, analogous to
+	// an HTTP User-Agent. Observability only: not used for auth or routing.
+	BotAgent string `json:"bot_agent,omitempty"`
 }
 
 // UploadMediaType enumerates media types for CDN upload.
@@ -73,7 +76,7 @@ type ImageItem struct {
 type VoiceItem struct {
 	Media         *CDNMedia `json:"media,omitempty"`
 	EncodeType    int       `json:"encode_type,omitempty"`
-	BitsPerSample int      `json:"bits_per_sample,omitempty"`
+	BitsPerSample int       `json:"bits_per_sample,omitempty"`
 	SampleRate    int       `json:"sample_rate,omitempty"`
 	Playtime      int       `json:"playtime,omitempty"` // milliseconds
 	Text          string    `json:"text,omitempty"`     // speech-to-text
@@ -103,17 +106,17 @@ type RefMessage struct {
 }
 
 type MessageItem struct {
-	Type        int          `json:"type,omitempty"`
+	Type         int         `json:"type,omitempty"`
 	CreateTimeMs int64       `json:"create_time_ms,omitempty"`
 	UpdateTimeMs int64       `json:"update_time_ms,omitempty"`
-	IsCompleted bool         `json:"is_completed,omitempty"`
-	MsgID       string       `json:"msg_id,omitempty"`
-	RefMsg      *RefMessage  `json:"ref_msg,omitempty"`
-	TextItem    *TextItem    `json:"text_item,omitempty"`
-	ImageItem   *ImageItem   `json:"image_item,omitempty"`
-	VoiceItem   *VoiceItem   `json:"voice_item,omitempty"`
-	FileItem    *FileItem    `json:"file_item,omitempty"`
-	VideoItem   *VideoItem   `json:"video_item,omitempty"`
+	IsCompleted  bool        `json:"is_completed,omitempty"`
+	MsgID        string      `json:"msg_id,omitempty"`
+	RefMsg       *RefMessage `json:"ref_msg,omitempty"`
+	TextItem     *TextItem   `json:"text_item,omitempty"`
+	ImageItem    *ImageItem  `json:"image_item,omitempty"`
+	VoiceItem    *VoiceItem  `json:"voice_item,omitempty"`
+	FileItem     *FileItem   `json:"file_item,omitempty"`
+	VideoItem    *VideoItem  `json:"video_item,omitempty"`
 }
 
 // WeixinMessage is the unified message structure from getUpdates / sendMessage.
@@ -142,12 +145,12 @@ type GetUpdatesReq struct {
 
 // GetUpdatesResp is the response from ilink/bot/getupdates.
 type GetUpdatesResp struct {
-	Ret                 *int             `json:"ret,omitempty"`
-	ErrCode             *int             `json:"errcode,omitempty"`
-	ErrMsg              string           `json:"errmsg,omitempty"`
-	Msgs                []*WeixinMessage `json:"msgs,omitempty"`
-	GetUpdatesBuf       string           `json:"get_updates_buf,omitempty"`
-	LongPollingTimeoutMs *int            `json:"longpolling_timeout_ms,omitempty"`
+	Ret                  *int             `json:"ret,omitempty"`
+	ErrCode              *int             `json:"errcode,omitempty"`
+	ErrMsg               string           `json:"errmsg,omitempty"`
+	Msgs                 []*WeixinMessage `json:"msgs,omitempty"`
+	GetUpdatesBuf        string           `json:"get_updates_buf,omitempty"`
+	LongPollingTimeoutMs *int             `json:"longpolling_timeout_ms,omitempty"`
 }
 
 // SendMessageReq wraps a single WeixinMessage for ilink/bot/sendmessage.
@@ -203,16 +206,54 @@ type SendTypingReq struct {
 
 // QRCodeResp is the response from ilink/bot/get_bot_qrcode.
 type QRCodeResp struct {
-	QRCode        string `json:"qrcode"`
+	QRCode           string `json:"qrcode"`
 	QRCodeImgContent string `json:"qrcode_img_content"`
 }
 
+// QR login status values returned by ilink/bot/get_qrcode_status.
+const (
+	QRStatusWait              = "wait"
+	QRStatusScaned            = "scaned"
+	QRStatusConfirmed         = "confirmed"
+	QRStatusExpired           = "expired"
+	QRStatusScanedButRedirect = "scaned_but_redirect"
+	// QRStatusNeedVerifyCode means the server wants the pairing digits shown
+	// in WeChat echoed back via the verify_code query parameter.
+	QRStatusNeedVerifyCode = "need_verifycode"
+	// QRStatusVerifyCodeBlocked means too many wrong pairing codes were sent.
+	QRStatusVerifyCodeBlocked = "verify_code_blocked"
+	// QRStatusBindedRedirect means the scanned bot is already bound to one of
+	// the tokens in local_token_list; no new credentials are issued.
+	QRStatusBindedRedirect = "binded_redirect"
+)
+
 // QRStatusResp is the response from ilink/bot/get_qrcode_status.
 type QRStatusResp struct {
-	Status       string `json:"status"` // wait, scaned, confirmed, expired, scaned_but_redirect
+	Status       string `json:"status"`
 	BotToken     string `json:"bot_token,omitempty"`
 	ILinkBotID   string `json:"ilink_bot_id,omitempty"`
 	BaseURL      string `json:"baseurl,omitempty"`
 	ILinkUserID  string `json:"ilink_user_id,omitempty"`
 	RedirectHost string `json:"redirect_host,omitempty"`
+}
+
+// QRCodeReq is the body of ilink/bot/get_bot_qrcode. The server uses
+// local_token_list to detect a bot that is already bound to this installation,
+// in which case polling reports binded_redirect instead of issuing new
+// credentials.
+type QRCodeReq struct {
+	LocalTokenList []string `json:"local_token_list"`
+}
+
+// SendMessageResp is the response from ilink/bot/sendmessage.
+type SendMessageResp struct {
+	MessageID string `json:"message_id,omitempty"`
+	Ret       *int   `json:"ret,omitempty"`
+	ErrMsg    string `json:"errmsg,omitempty"`
+}
+
+// NotifyResp is the response from ilink/bot/msg/notifystart and notifystop.
+type NotifyResp struct {
+	Ret    *int   `json:"ret,omitempty"`
+	ErrMsg string `json:"errmsg,omitempty"`
 }

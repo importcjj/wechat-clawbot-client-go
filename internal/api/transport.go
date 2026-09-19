@@ -51,7 +51,17 @@ func (tc *TransportConfig) ensureTrailingSlash(u string) string {
 
 // DoGET performs a GET request to the given endpoint with common headers.
 func (tc *TransportConfig) DoGET(ctx context.Context, endpoint string) ([]byte, error) {
-	base := tc.ensureTrailingSlash(tc.baseURL())
+	return tc.DoGETBase(ctx, "", endpoint)
+}
+
+// DoGETBase is DoGET against an explicit base URL, leaving tc.BaseURL alone.
+// An empty baseURL falls back to the configured one. Used by QR polling, which
+// may be redirected to another IDC host mid-login.
+func (tc *TransportConfig) DoGETBase(ctx context.Context, baseURL, endpoint string) ([]byte, error) {
+	if baseURL == "" {
+		baseURL = tc.baseURL()
+	}
+	base := tc.ensureTrailingSlash(baseURL)
 	url := base + endpoint
 
 	tc.logger().Debug("GET", "url", url)
@@ -84,7 +94,15 @@ func (tc *TransportConfig) DoGET(ctx context.Context, endpoint string) ([]byte, 
 
 // DoPOST performs a POST request with JSON body, auth headers, and common headers.
 func (tc *TransportConfig) DoPOST(ctx context.Context, endpoint string, jsonBody []byte) ([]byte, error) {
-	base := tc.ensureTrailingSlash(tc.baseURL())
+	return tc.DoPOSTBase(ctx, "", endpoint, jsonBody)
+}
+
+// DoPOSTBase is DoPOST against an explicit base URL, leaving tc.BaseURL alone.
+func (tc *TransportConfig) DoPOSTBase(ctx context.Context, baseURL, endpoint string, jsonBody []byte) ([]byte, error) {
+	if baseURL == "" {
+		baseURL = tc.baseURL()
+	}
+	base := tc.ensureTrailingSlash(baseURL)
 	url := base + endpoint
 
 	tc.logger().Debug("POST", "url", url)

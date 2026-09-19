@@ -66,9 +66,19 @@ func SendMessage(ctx context.Context, tc *TransportConfig, msg *WeixinMessage) e
 		return fmt.Errorf("marshaling sendMessage request: %w", err)
 	}
 
-	_, err = tc.DoPOST(ctx, "ilink/bot/sendmessage", data)
+	respBody, err := tc.DoPOST(ctx, "ilink/bot/sendmessage", data)
 	if err != nil {
 		return fmt.Errorf("sendMessage: %w", err)
+	}
+
+	// The server answers HTTP 200 with a non-zero ret on rejection, so the
+	// body has to be checked or failed sends look successful.
+	var resp SendMessageResp
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return fmt.Errorf("unmarshaling sendMessage response: %w", err)
+	}
+	if resp.Ret != nil && *resp.Ret != 0 {
+		return fmt.Errorf("sendMessage: ret=%d errmsg=%q", *resp.Ret, resp.ErrMsg)
 	}
 	return nil
 }
@@ -146,13 +156,24 @@ func SendTyping(ctx context.Context, tc *TransportConfig, userID, ticket string,
 	return nil
 }
 
-// FetchQRCode retrieves a QR code for login.
-func FetchQRCode(ctx context.Context, tc *TransportConfig, botType string) (*QRCodeResp, error) {
+// FetchQRCode retrieves a QR code for login. localTokens are the bot tokens
+// already stored locally; the server uses them to recognise a bot that is
+// already bound to this installation and answers binded_redirect instead of
+// issuing a duplicate account.
+func FetchQRCode(ctx context.Context, tc *TransportConfig, botType string, localTokens []string) (*QRCodeResp, error) {
 	ctx, cancel := context.WithTimeout(ctx, DefaultQRCodeTimeout)
 	defer cancel()
 
+	if localTokens == nil {
+		localTokens = []string{}
+	}
+	data, err := json.Marshal(QRCodeReq{LocalTokenList: localTokens})
+	if err != nil {
+		return nil, fmt.Errorf("marshaling get_bot_qrcode request: %w", err)
+	}
+
 	endpoint := "ilink/bot/get_bot_qrcode?bot_type=" + url.QueryEscape(botType)
-	body, err := tc.DoGET(ctx, endpoint)
+	body, err := tc.DoPOST(ctx, endpoint, data)
 	if err != nil {
 		return nil, fmt.Errorf("fetchQRCode: %w", err)
 	}
@@ -164,28 +185,29 @@ func FetchQRCode(ctx context.Context, tc *TransportConfig, botType string) (*QRC
 	return &resp, nil
 }
 
-// PollQRStatus long-polls for QR code login status.
-// On timeout, returns a "wait" status (normal behavior).
-func PollQRStatus(ctx context.Context, tc *TransportConfig, baseURL, qrcode string) (*QRStatusResp, error) {
+// PollQRStatus long-polls for QR code login status. A non-empty verifyCode is
+// echoed back to the server as the pairing digits the user read off WeChat.
+//
+// A client-side timeout means the long-poll simply held open with nothing to
+// report, so it maps to "wait". Every other failure is returned to the caller:
+// silently retrying an HTTP 4xx/5xx would leave the login spinning forever with
+// no sign of what went wrong.
+func PollQRStatus(ctx context.Context, tc *TransportConfig, baseURL, qrcode, verifyCode string) (*QRStatusResp, error) {
 	ctx, cancel := context.WithTimeout(ctx, DefaultQRPollTimeout)
 	defer cancel()
 
 	endpoint := "ilink/bot/get_qrcode_status?qrcode=" + url.QueryEscape(qrcode)
+	if verifyCode != "" {
+		endpoint += "&verify_code=" + url.QueryEscape(verifyCode)
+	}
 
-	// Use custom base URL (may differ during IDC redirect)
-	origBase := tc.BaseURL
-	tc.BaseURL = baseURL
-	defer func() { tc.BaseURL = origBase }()
-
-	body, err := tc.DoGET(ctx, endpoint)
+	body, err := tc.DoGETBase(ctx, baseURL, endpoint)
 	if err != nil {
 		if ctx.Err() != nil {
-			// Timeout is normal for long-poll
-			return &QRStatusResp{Status: "wait"}, nil
+			// Client-side timeout is normal for a long-poll.
+			return &QRStatusResp{Status: QRStatusWait}, nil
 		}
-		// Network/gateway errors: treat as wait, continue polling
-		tc.logger().Warn("pollQRStatus: network error, will retry", "error", err)
-		return &QRStatusResp{Status: "wait"}, nil
+		return nil, fmt.Errorf("pollQRStatus: %w", err)
 	}
 
 	var resp QRStatusResp
@@ -193,4 +215,40 @@ func PollQRStatus(ctx context.Context, tc *TransportConfig, baseURL, qrcode stri
 		return nil, fmt.Errorf("unmarshaling QR status response: %w", err)
 	}
 	return &resp, nil
+}
+
+// NotifyStart tells the server this bot client is coming up.
+func NotifyStart(ctx context.Context, tc *TransportConfig) error {
+	return notify(ctx, tc, "ilink/bot/msg/notifystart")
+}
+
+// NotifyStop tells the server this bot client is shutting down.
+func NotifyStop(ctx context.Context, tc *TransportConfig) error {
+	return notify(ctx, tc, "ilink/bot/msg/notifystop")
+}
+
+func notify(ctx context.Context, tc *TransportConfig, endpoint string) error {
+	ctx, cancel := context.WithTimeout(ctx, DefaultConfigTimeout)
+	defer cancel()
+
+	data, err := json.Marshal(struct {
+		BaseInfo *BaseInfo `json:"base_info,omitempty"`
+	}{BaseInfo: BuildBaseInfo(tc.Version)})
+	if err != nil {
+		return fmt.Errorf("marshaling %s request: %w", endpoint, err)
+	}
+
+	body, err := tc.DoPOST(ctx, endpoint, data)
+	if err != nil {
+		return fmt.Errorf("%s: %w", endpoint, err)
+	}
+
+	var resp NotifyResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return fmt.Errorf("unmarshaling %s response: %w", endpoint, err)
+	}
+	if resp.Ret != nil && *resp.Ret != 0 {
+		return fmt.Errorf("%s: ret=%d errmsg=%q", endpoint, *resp.Ret, resp.ErrMsg)
+	}
+	return nil
 }
