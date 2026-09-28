@@ -1,5 +1,11 @@
 package api
 
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
 // Weixin iLink Bot protocol types (JSON over HTTP).
 // Mirrors the wire format from the reference TypeScript implementation.
 
@@ -248,10 +254,30 @@ type QRCodeReq struct {
 }
 
 // SendMessageResp is the response from ilink/bot/sendmessage.
+//
+// MessageID is a number on the wire, same as WeixinMessage.MessageID (decoding it as a string failed every send with
+// "cannot unmarshal number into Go struct field SendMessageResp.message_id", Issue #115).
 type SendMessageResp struct {
-	MessageID string `json:"message_id,omitempty"`
-	Ret       *int   `json:"ret,omitempty"`
-	ErrMsg    string `json:"errmsg,omitempty"`
+	MessageID NumericID `json:"message_id,omitempty"`
+	Ret       *int      `json:"ret,omitempty"`
+	ErrMsg    string    `json:"errmsg,omitempty"`
+}
+
+// NumericID is a uint64 id the server writes as a JSON number, while older fixtures / gateways quote it. Both decode.
+type NumericID uint64
+
+func (n *NumericID) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(strings.TrimSpace(string(b)), `"`)
+	if s == "" || s == "null" {
+		*n = 0
+		return nil
+	}
+	v, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return fmt.Errorf("message_id %q is not an unsigned integer: %w", s, err)
+	}
+	*n = NumericID(v)
+	return nil
 }
 
 // NotifyResp is the response from ilink/bot/msg/notifystart and notifystop.
